@@ -13,7 +13,7 @@ const {
 router.get('/', obtenerCotizaciones);
 
 // Ruta para obtener cotizaciones por empresa
-router.get('/:empresa', cotizacionesController.obtenerCotizacionesPorEmpresa);
+router.get('/:empresa', obtenerCotizacionesPorEmpresa);
 
 // Crear una nueva cotización
 router.post('/', crearCotizacion);
