@@ -5,6 +5,9 @@ const mongoose = require('mongoose');
 const app = express();
 const port = process.env.PORT || 5000;
 
+// Importar cronjobs
+require('./cronJobs.js');
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -16,12 +19,6 @@ mongoose.connect('mongodb://localhost:27017/boexbd', {
 })
 .then(() => console.log('Conectado a MongoDB'))
 .catch(err => console.error('No se pudo conectar a MongoDB', err));
-
-// Importar rutas
-const cotizacionesRoutes = require('./routes/cotizaciones');
-
-// Usar rutas
-app.use('/api/cotizaciones', cotizacionesRoutes);
 
 // Iniciar el servidor
 app.listen(port, () => {
