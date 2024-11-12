@@ -6,14 +6,12 @@ const {
   crearEmpresa,
   actualizarEmpresa,
   eliminarEmpresa,
-  obtenerEmpresaPorCodigo,
 } = require('../controllers/empresasController');
 
 // Obtener todas las cotizaciones
 router.get('/', obtenerEmpresas);
 
 // Ruta para obtener cotizaciones por empresa
-router.get('/:empresa', obtenerEmpresaPorCodigo);
 
 // Crear una nueva cotización
 router.post('/', crearEmpresa);

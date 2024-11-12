@@ -22,9 +22,11 @@ mongoose.connect('mongodb://localhost:27017/boexbd', {
 
 // Importar rutas
 const empresasRoutes = require('./routes/empresas');
+const cotizacionesRoutes = require('./routes/cotizaciones');
 
 // Usar rutas
 app.use('/api/empresas', empresasRoutes);
+app.use('/api/cotizaciones', cotizacionesRoutes);
 
 // Iniciar el servidor
 app.listen(port, () => {

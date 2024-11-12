@@ -12,21 +12,6 @@ const obtenerEmpresas = async (req, res) => {
   }
 };
 
-// Obtener empresa por código
-const obtenerEmpresaPorCodigo = async (req, res) => {
-  const { codempresa } = req.params; // Obtiene el código de la empresa de la ruta
-  try {
-    const empresa = await Empresa.findOne({ codempresa }); // Busca la empresa por su código
-    if (!empresa) {
-      return res.status(404).json({ mensaje: 'Empresa no encontrada' });
-    }
-    res.json(empresa); // Devuelve la empresa encontrada
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ mensaje: 'Error al obtener la empresa' });
-  }
-};
-
 // Crear una nueva empresa
 const crearEmpresa = async (req, res) => {
   try {
@@ -72,7 +57,6 @@ const eliminarEmpresa = async (req, res) => {
 
 module.exports = {
   obtenerEmpresas,
-  obtenerEmpresaPorCodigo,
   crearEmpresa,
   actualizarEmpresa,
   eliminarEmpresa,
