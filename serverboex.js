@@ -1,4 +1,4 @@
-// BOEX-backend/server.js
+// BOEX-backend/serverboex.js
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -23,10 +23,12 @@ mongoose.connect('mongodb://localhost:27017/boexbd', {
 // Importar rutas
 const empresasRoutes = require('./routes/empresas');
 const cotizacionesRoutes = require('./routes/cotizaciones');
+const indicesRoutes = require('./routes/indices');
 
 // Usar rutas
 app.use('/api/empresas', empresasRoutes);
 app.use('/api/cotizaciones', cotizacionesRoutes);
+app.use('/api/indices', indicesRoutes);
 
 // Iniciar el servidor
 app.listen(port, () => {
@@ -37,4 +39,3 @@ app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
 });
-

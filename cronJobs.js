@@ -3,14 +3,7 @@ const axios = require('axios');
 const mongoose = require('mongoose');
 const Empresa = require('./models/empresas');
 const Cotizacion = require('./models/cotizaciones');
-
-// Conectar a MongoDB
-mongoose.connect('mongodb://localhost:27017/boexbd', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('Conectado a MongoDB para cron job'))
-.catch(err => console.error('Error al conectar a MongoDB:', err));
+const Indice = require('./models/indices');
 
 // Función para actualizar/crear empresas
 const actualizarEmpresas = async () => {
@@ -44,7 +37,7 @@ const actualizarEmpresas = async () => {
           empresaExistente.id = data.id;
           empresaExistente.cantidadAcciones = data.cantidadAcciones;
           await empresaExistente.save();
-          console.log(`Empresa ${data.empresaNombre} actualizada.`);
+          //console.log(`Empresa ${data.empresaNombre} actualizada.`);
         } else {
           // Crear una nueva empresa si no existe
           await Empresa.create({
@@ -108,7 +101,7 @@ const actualizarCotizaciones = async () => {
             cotizacionExistente.cotization = parseFloat(cotization);
             cotizacionExistente.codempresa = empresa.codempresa;
             await cotizacionExistente.save();
-            console.log(`Cotización ${id} actualizada para la empresa ${empresa.codempresa}`);
+            //console.log(`Cotización ${id} actualizada para la empresa ${empresa.codempresa}`);
           } else {
             // Crear una nueva cotización si no existe
             await Cotizacion.create({
@@ -131,7 +124,86 @@ const actualizarCotizaciones = async () => {
   }
 };
 
+const actualizarIndices = async () => {
+  try {
+    // Obtener todos los índices desde la URL externa
+    const { data } = await axios.get('http://ec2-54-145-211-254.compute-1.amazonaws.com:3000/indices');
+
+    // Recorrer todos los índices obtenidos
+    for (const indiceData of data) {
+      const { code, name } = indiceData;
+
+      // Verificar si el índice ya existe en la base de datos
+      const indiceExistente = await Indice.findOne({ code });
+
+      if (indiceExistente) {
+        // Si el índice existe, verificar si la información es diferente
+        if (indiceExistente.name !== name) {
+          // Si el nombre es diferente, actualizarlo
+          indiceExistente.name = name;
+          await indiceExistente.save();
+          console.log(`Índice con código ${code} actualizado.`);
+        } else {
+          console.log(`Índice con código ${code} ya está actualizado.`);
+        }
+      } else {
+        // Si el índice no existe, crear uno nuevo
+        const nuevoIndice = new Indice({
+          code,
+          name,
+        });
+        await nuevoIndice.save();
+        console.log(`Índice con código ${code} creado.`);
+      }
+    }
+  } catch (error) {
+    console.error('Error al actualizar los índices:', error);
+  }
+};
+
+async function crearIndiceMOEX() {
+  const indice = {
+    code: 'MOEX',
+    name: 'Moscow Exchange',
+  };
+
+  try {
+    // Verificar si el índice ya existe antes de intentar crearlo
+    const respuestaExistente = await axios.get('http://ec2-54-145-211-254.compute-1.amazonaws.com:3000/indices', {
+      headers: {
+        'Authorization': 'Bearer Luis_rios',
+      },
+    });
+
+    const indiceExistente = respuestaExistente.data.find(indice => indice.code === 'MOEX');
+    
+    if (indiceExistente) {
+      console.log('El índice ya existe:', indiceExistente);
+      return; // Salir si el índice ya está creado
+    }
+
+    // Si no existe, proceder con la creación del índice
+    const respuesta = await axios.post('http://ec2-54-145-211-254.compute-1.amazonaws.com:3000/indices', indice, {
+      headers: {
+        'Authorization': 'Bearer Luis_rios',
+      },
+    });
+
+    console.log('Índice creado:', respuesta.data);
+  } catch (error) {
+    // Manejar errores generales, como problemas de conexión o conflicto
+    if (error.response && error.response.status === 409) {
+      console.log('Conflicto al crear el índice: El índice ya existe');
+    } else {
+      console.error('Error al actualizar los índices:', error);
+    }
+  }
+}
+
+
 // Configuración del cron job para ejecutarse cada 3 horas
 const cron = require('node-cron');
 cron.schedule('* * * * *', actualizarEmpresas);
 cron.schedule('* * * * *', actualizarCotizaciones);
+cron.schedule('* * * * *', actualizarIndices);
+cron.schedule('* * * * *', crearIndiceMOEX);
