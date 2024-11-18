@@ -71,7 +71,7 @@ const actualizarCotizaciones = async () => {
     
     // Obtener las fechas para el rango de búsqueda
     const dateDesdeUTC = new Date();
-    dateDesdeUTC.setDate(dateDesdeUTC.getDate() - 31);  // TODO: CAMBIAR??
+    dateDesdeUTC.setDate(dateDesdeUTC.getDate() - 365);  // TODO: CAMBIAR??
     const dateHastaUTC = new Date();
 
     const fechaDesde = obtenerFechaFormatoISO(dateDesdeUTC);
@@ -204,6 +204,6 @@ async function crearIndiceMOEX() {
 // Configuración del cron job para ejecutarse cada 3 horas
 const cron = require('node-cron');
 cron.schedule('* * * * *', actualizarEmpresas);
-cron.schedule('* * * * *', actualizarCotizaciones);
+cron.schedule('*/10 * * * *', actualizarCotizaciones);
 cron.schedule('* * * * *', actualizarIndices);
 cron.schedule('* * * * *', crearIndiceMOEX);
