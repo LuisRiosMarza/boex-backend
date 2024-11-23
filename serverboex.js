@@ -24,11 +24,13 @@ mongoose.connect('mongodb://localhost:27017/boexbd', {
 const empresasRoutes = require('./routes/empresas');
 const cotizacionesRoutes = require('./routes/cotizaciones');
 const indicesRoutes = require('./routes/indices');
+const indicesCotizacionesRoutes = require('./routes/indicesCotizaciones');
 
 // Usar rutas
 app.use('/api/empresas', empresasRoutes);
 app.use('/api/cotizaciones', cotizacionesRoutes);
 app.use('/api/indices', indicesRoutes);
+app.use('/api/indicesCotizaciones', indicesCotizacionesRoutes);
 
 // Iniciar el servidor
 app.listen(port, () => {

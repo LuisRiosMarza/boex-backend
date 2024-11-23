@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const Empresa = require('./models/empresas');
 const Cotizacion = require('./models/cotizaciones');
 const Indice = require('./models/indices');
+const IndiceCotizacion = require('./models/indicesCotizaciones');
 
 // Función para actualizar/crear empresas
 const actualizarEmpresas = async () => {
@@ -71,7 +72,7 @@ const actualizarCotizaciones = async () => {
     
     // Obtener las fechas para el rango de búsqueda
     const dateDesdeUTC = new Date();
-    dateDesdeUTC.setDate(dateDesdeUTC.getDate() - 365);  // TODO: CAMBIAR??
+    dateDesdeUTC.setDate(dateDesdeUTC.getDate() - 30);  // TODO: CAMBIAR??
     const dateHastaUTC = new Date();
 
     const fechaDesde = obtenerFechaFormatoISO(dateDesdeUTC);
@@ -200,10 +201,139 @@ async function crearIndiceMOEX() {
   }
 }
 
+const calcularIndicesHistoricos = async () => {
+  try {
+    // Obtener todas las empresas de la base de datos
+    const empresas = await Empresa.find({});
+    const hoy = new Date();
+    const primerDiaDelAno = new Date(hoy.getFullYear(), 0, 1); // 1 de enero del año actual
+
+    // Iterar por cada día desde el 1 de enero hasta hoy
+    for (let dia = primerDiaDelAno; dia <= hoy; dia.setDate(dia.getDate() + 1)) {
+      const fechaActual = dia.toISOString().slice(0, 10); // "YYYY-MM-DD"
+
+      // Iterar por cada hora del día
+      for (let hora = 0; hora < 24; hora++) {
+        const horaFormato = hora.toString().padStart(2, '0') + ':00'; // "HH:00"
+
+        // Verificar si ya existe un índice para esta fecha y hora
+        const indiceExistente = await IndiceCotizacion.findOne({
+          fecha: fechaActual,
+          hora: horaFormato,
+          codigoIndice: 'MOEX', // Mi código de índice
+        });
+
+        if (indiceExistente) {
+          console.log(`Índice ya existente para ${fechaActual} ${horaFormato}. Saltando...`);
+          continue;
+        }
+
+        // Inicializar el valor del índice para esa hora
+        let sumaCapitalizacion = 0;
+
+        for (const empresa of empresas) {
+          // Obtener la cotización más reciente hasta esa hora
+          const ultimaCotizacion = await Cotizacion.findOne({
+            codempresa: empresa.codempresa,
+            dateUTC: { $lte: new Date(`${fechaActual}T${horaFormato}:00Z`) },
+          })
+            .sort({ dateUTC: -1 }) // Ordenar por fecha descendente
+            .limit(1);
+
+          if (ultimaCotizacion) {
+            const capitalizacion = ultimaCotizacion.cotization * empresa.cantidadAcciones;
+            sumaCapitalizacion += capitalizacion;
+          } else {
+            console.warn(`No se encontraron cotizaciones para la empresa ${empresa.codempresa}`);
+          }
+        }
+
+        // Crear un nuevo índice bursátil para esa hora
+        const nuevoIndice = new IndiceCotizacion({
+          fecha: fechaActual,
+          hora: horaFormato,
+          codigoIndice: 'MOEX', // Mi código de índice
+          valorIndice: sumaCapitalizacion,
+        });
+
+        await nuevoIndice.save();
+        console.log('Índice bursátil calculado y guardado:', nuevoIndice);
+      }
+    }
+
+    console.log('Cálculo de índices históricos completado.');
+
+  } catch (error) {
+    console.error('Error al calcular los índices históricos:', error);
+  }
+};
+
+// Función para obtener cotizaciones y actualizar la base de datos
+const actualizarCotizacionesIndices = async () => {
+  try {
+    // Obtener todos los índices excepto MOEX
+    const indices = await Indice.find({ code: { $ne: 'MOEX' } });
+
+    // Definir el rango de fechas (desde el 1 de enero hasta hoy)
+    const fechaDesdeUTC = new Date(new Date().getFullYear(), 0, 1); // 1 de enero
+    fechaDesdeUTC.setUTCHours(0, 0, 0, 0);
+    const fechaHastaUTC = new Date(); // Hoy
+
+    const fechaDesde = obtenerFechaFormatoISO(fechaDesdeUTC);
+    const fechaHasta = obtenerFechaFormatoISO(fechaHastaUTC);
+    //console.log(indices);
+
+    for (const indice of indices) {
+      const url = `http://ec2-54-145-211-254.compute-1.amazonaws.com:3000/indices/${indice.code}/cotizaciones?fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`;
+
+      // Mostrar la URL que está siendo consultada
+      console.log(`Consultando URL: ${url}`);
+
+      try {
+        const response = await axios.get(url);
+        const cotizaciones = response.data; // Se espera un arreglo de cotizaciones
+
+        // Procesar cada cotización
+        for (const cotizacionData of cotizaciones) {
+          const { fecha, hora, valorIndice } = cotizacionData;
+
+          // Buscar si ya existe la cotización en la base de datos
+          const cotizacionExistente = await IndiceCotizacion.findOne({
+            fecha,
+            hora,
+            codigoIndice: indice.code,
+          });
+
+          if (cotizacionExistente) {
+            // Actualizar la cotización existente
+            cotizacionExistente.valorIndice = parseFloat(valorIndice);
+            await cotizacionExistente.save();
+            console.log(`Cotización actualizada para ${indice.code} en ${fecha} ${hora}`);
+          } else {
+            // Crear una nueva cotización si no existe
+            await IndiceCotizacion.create({
+              fecha,
+              hora,
+              codigoIndice: indice.code,
+              valorIndice: parseFloat(valorIndice),
+            });
+            console.log(`Nueva cotización creada para ${indice.code} en ${fecha} ${hora}`);
+          }
+        }
+      } catch (error) {
+        console.error(`No se encontraron cotizaciones para el índice ${indice.code}. Error:`, error.message);
+      }
+    }
+  } catch (error) {
+    console.error('Error en la tarea de actualización de cotizaciones de índices:', error);
+  }
+};
 
 // Configuración del cron job para ejecutarse cada 3 horas
 const cron = require('node-cron');
-cron.schedule('* * * * *', actualizarEmpresas);
-cron.schedule('*/10 * * * *', actualizarCotizaciones);
-cron.schedule('* * * * *', actualizarIndices);
-cron.schedule('* * * * *', crearIndiceMOEX);
+//cron.schedule('* * * * *', calcularIndicesHistoricos); // Ejecutar cada hora en el minuto 0 * * * *
+//cron.schedule('* * * * *', actualizarEmpresas);
+//cron.schedule('* * * * *', actualizarCotizaciones);
+//cron.schedule('* * * * *', actualizarIndices);
+//cron.schedule('* * * * *', crearIndiceMOEX);
+//cron.schedule('* * * * *', actualizarCotizacionesIndices);
