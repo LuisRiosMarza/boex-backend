@@ -69,7 +69,7 @@ const actualizarCotizaciones = async () => {
   try {
     // Obtener todas las empresas desde la base de datos
     const empresas = await Empresa.find({});
-    
+
     // Obtener las fechas para el rango de búsqueda
     const dateDesdeUTC = new Date();
     dateDesdeUTC.setDate(dateDesdeUTC.getDate() - 30);  // TODO: CAMBIAR??
@@ -81,12 +81,12 @@ const actualizarCotizaciones = async () => {
     for (const empresa of empresas) {
       const url = `http://ec2-54-145-211-254.compute-1.amazonaws.com:3000/empresas/${empresa.codempresa}/cotizaciones?fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`;
 
-       // Mostrar la URL que está siendo consultada
-       console.log(`Consultando URL: ${url}`);
+      // Mostrar la URL que está siendo consultada
+      console.log(`Consultando URL: ${url}`);
       try {
         const response = await axios.get(url);
         const cotizaciones = response.data; // Se espera un arreglo de cotizaciones
-        
+
         // Procesar cada cotización
         for (const cotizacionData of cotizaciones) {
           const { id, fecha, hora, dateUTC, cotization } = cotizacionData;
@@ -177,7 +177,7 @@ async function crearIndiceMOEX() {
     });
 
     const indiceExistente = respuestaExistente.data.find(indice => indice.code === 'MOEX');
-    
+
     if (indiceExistente) {
       console.log('El índice ya existe:', indiceExistente);
       return; // Salir si el índice ya está creado
@@ -212,19 +212,24 @@ const calcularIndicesHistoricos = async () => {
     for (let dia = primerDiaDelAno; dia <= hoy; dia.setDate(dia.getDate() + 1)) {
       const fechaActual = dia.toISOString().slice(0, 10); // "YYYY-MM-DD"
 
-      // Iterar por cada hora del día
-      for (let hora = 0; hora < 24; hora++) {
-        const horaFormato = hora.toString().padStart(2, '0') + ':00'; // "HH:00"
+      // Iterar por cada hora dentro del horario de la bolsa (UTC: 06:00 a 16:00)
+      for (let hora = 6; hora < 17; hora++) {
+        const horaUTC = hora.toString().padStart(2, '0') + ':00'; // "HH:00"
+        
+        // Convertir la hora UTC a hora rusa (UTC+3)
+        const horaRusa = new Date(`${fechaActual}T${horaUTC}:00Z`);
+        horaRusa.setHours(horaRusa.getHours() + 3);
+        const horaRusaFormato = horaRusa.toISOString().slice(11, 16); // "HH:MM" en UTC+3
 
-        // Verificar si ya existe un índice para esta fecha y hora
+        // Verificar si ya existe un índice para esta fecha y hora rusa
         const indiceExistente = await IndiceCotizacion.findOne({
+          code: 'MOEX', // Mi código de índice
           fecha: fechaActual,
-          hora: horaFormato,
-          codigoIndice: 'MOEX', // Mi código de índice
+          hora: horaRusaFormato,
         });
 
         if (indiceExistente) {
-          console.log(`Índice ya existente para ${fechaActual} ${horaFormato}. Saltando...`);
+          console.log(`Índice ya existente para ${fechaActual} ${horaRusaFormato}. Saltando...`);
           continue;
         }
 
@@ -232,10 +237,10 @@ const calcularIndicesHistoricos = async () => {
         let sumaCapitalizacion = 0;
 
         for (const empresa of empresas) {
-          // Obtener la cotización más reciente hasta esa hora
+          // Obtener la cotización más reciente hasta esa hora UTC
           const ultimaCotizacion = await Cotizacion.findOne({
             codempresa: empresa.codempresa,
-            dateUTC: { $lte: new Date(`${fechaActual}T${horaFormato}:00Z`) },
+            dateUTC: { $lte: new Date(`${fechaActual}T${horaUTC}:00Z`) },
           })
             .sort({ dateUTC: -1 }) // Ordenar por fecha descendente
             .limit(1);
@@ -248,12 +253,13 @@ const calcularIndicesHistoricos = async () => {
           }
         }
 
-        // Crear un nuevo índice bursátil para esa hora
+        // Crear un nuevo índice bursátil para esa hora rusa
         const nuevoIndice = new IndiceCotizacion({
           fecha: fechaActual,
-          hora: horaFormato,
-          codigoIndice: 'MOEX', // Mi código de índice
-          valorIndice: sumaCapitalizacion,
+          hora: horaRusaFormato,
+          fechaDate: horaRusa, // Guardar la hora rusa completa como objeto Date
+          code: 'MOEX', // Mi código de índice
+          valor: parseFloat(sumaCapitalizacion),
         });
 
         await nuevoIndice.save();
@@ -295,27 +301,28 @@ const actualizarCotizacionesIndices = async () => {
 
         // Procesar cada cotización
         for (const cotizacionData of cotizaciones) {
-          const { fecha, hora, valorIndice } = cotizacionData;
+          const { fecha, hora, valor, fechaDate} = cotizacionData;
 
           // Buscar si ya existe la cotización en la base de datos
           const cotizacionExistente = await IndiceCotizacion.findOne({
+            code: indice.code,
             fecha,
             hora,
-            codigoIndice: indice.code,
           });
 
           if (cotizacionExistente) {
             // Actualizar la cotización existente
-            cotizacionExistente.valorIndice = parseFloat(valorIndice);
+            cotizacionExistente.valor = parseFloat(valor);
             await cotizacionExistente.save();
             console.log(`Cotización actualizada para ${indice.code} en ${fecha} ${hora}`);
           } else {
             // Crear una nueva cotización si no existe
             await IndiceCotizacion.create({
+              code: indice.code,
               fecha,
               hora,
-              codigoIndice: indice.code,
-              valorIndice: parseFloat(valorIndice),
+              fechaDate,
+              valor: parseFloat(valor),
             });
             console.log(`Nueva cotización creada para ${indice.code} en ${fecha} ${hora}`);
           }
@@ -328,6 +335,9 @@ const actualizarCotizacionesIndices = async () => {
     console.error('Error en la tarea de actualización de cotizaciones de índices:', error);
   }
 };
+
+//calcularIndicesHistoricos();
+actualizarCotizacionesIndices();
 
 // Configuración del cron job para ejecutarse cada 3 horas
 const cron = require('node-cron');
