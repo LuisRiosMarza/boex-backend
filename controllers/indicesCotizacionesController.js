@@ -57,11 +57,11 @@ const eliminarCotizacionIndice = async (req, res) => {
 
 // Buscar cotizaciones por código de índice
 const obtenerCotizacionesPorCodigoIndice = async (req, res) => {
-  const { code } = req.params; // Obtener el código de índice desde los parámetros
+  const { codigoIndice } = req.params; // Obtener el código de índice desde los parámetros
   try {
-    const cotizaciones = await IndiceCotizacion.find({ code }); // Buscar cotizaciones por código de índice
+    const cotizaciones = await IndiceCotizacion.find({ codigoIndice }); // Buscar cotizaciones por código de índice
     if (cotizaciones.length === 0) {
-      return res.status(404).json({ mensaje: `No se encontraron cotizaciones para el índice: ${code}` });
+      return res.status(404).json({ mensaje: `No se encontraron cotizaciones para el índice: ${codigoIndice}` });
     }
     res.json(cotizaciones); // Devuelve las cotizaciones encontradas
   } catch (error) {

@@ -22,6 +22,6 @@ router.put('/:id', actualizarCotizacionIndice);
 router.delete('/:id', eliminarCotizacionIndice);
 
 // Ruta para obtener cotizaciones por código de índice
-router.get('/:code', obtenerCotizacionesPorCodigoIndice);
+router.get('/:codigoIndice', obtenerCotizacionesPorCodigoIndice);
 
 module.exports = router;

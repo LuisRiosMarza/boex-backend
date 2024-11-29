@@ -2,11 +2,10 @@
 const mongoose = require('mongoose');
 
 const indiceCotizacionSchema = new mongoose.Schema({
-  code: { type: String, required: true }, // Código del índice
   fecha: { type: String, required: true },        // Fecha del índice
   hora: { type: String, required: true },         // Hora del índice
-  fechaDate: {type: Date, required: true},
-  valor: { type: Number, required: true },  // Valor del índice
+  codigoIndice: { type: String, required: true }, // Código del índice
+  valorIndice: { type: Number, required: true },  // Valor del índice
 });
 
 /*{

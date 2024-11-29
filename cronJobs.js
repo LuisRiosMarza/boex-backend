@@ -215,7 +215,7 @@ const calcularIndicesHistoricos = async () => {
       // Iterar por cada hora dentro del horario de la bolsa (UTC: 06:00 a 16:00)
       for (let hora = 6; hora < 17; hora++) {
         const horaUTC = hora.toString().padStart(2, '0') + ':00'; // "HH:00"
-        
+
         // Convertir la hora UTC a hora rusa (UTC+3)
         const horaRusa = new Date(`${fechaActual}T${horaUTC}:00Z`);
         horaRusa.setHours(horaRusa.getHours() + 3);
@@ -223,7 +223,7 @@ const calcularIndicesHistoricos = async () => {
 
         // Verificar si ya existe un índice para esta fecha y hora rusa
         const indiceExistente = await IndiceCotizacion.findOne({
-          code: 'MOEX', // Mi código de índice
+          codigoIndice: 'MOEX', // Mi código de índice
           fecha: fechaActual,
           hora: horaRusaFormato,
         });
@@ -257,9 +257,8 @@ const calcularIndicesHistoricos = async () => {
         const nuevoIndice = new IndiceCotizacion({
           fecha: fechaActual,
           hora: horaRusaFormato,
-          fechaDate: horaRusa, // Guardar la hora rusa completa como objeto Date
-          code: 'MOEX', // Mi código de índice
-          valor: parseFloat(sumaCapitalizacion),
+          codigoIndice: 'MOEX', // Mi código de índice
+          valorIndice: parseFloat((sumaCapitalizacion / 10000000000).toFixed(2)), //divido por este numero exagerado porque, la suma me da por un numero exagerado.
         });
 
         await nuevoIndice.save();
@@ -301,11 +300,11 @@ const actualizarCotizacionesIndices = async () => {
 
         // Procesar cada cotización
         for (const cotizacionData of cotizaciones) {
-          const { fecha, hora, valor, fechaDate} = cotizacionData;
+          const { fecha, hora, valor } = cotizacionData;
 
           // Buscar si ya existe la cotización en la base de datos
           const cotizacionExistente = await IndiceCotizacion.findOne({
-            code: indice.code,
+            codigoIndice: indice.code,
             fecha,
             hora,
           });
@@ -318,11 +317,10 @@ const actualizarCotizacionesIndices = async () => {
           } else {
             // Crear una nueva cotización si no existe
             await IndiceCotizacion.create({
-              code: indice.code,
+              codigoIndice: indice.code,
               fecha,
               hora,
-              fechaDate,
-              valor: parseFloat(valor),
+              valorIndice: parseFloat(valor),
             });
             console.log(`Nueva cotización creada para ${indice.code} en ${fecha} ${hora}`);
           }
@@ -336,8 +334,82 @@ const actualizarCotizacionesIndices = async () => {
   }
 };
 
-//calcularIndicesHistoricos();
-actualizarCotizacionesIndices();
+async function publicarTodasLasCotizacionesMOEX() {
+  try {
+    // Obtener todas las cotizaciones de la base local con el código 'MOEX'
+    const cotizaciones = await IndiceCotizacion.find({ codigoIndice: 'MOEX' }).exec();
+    if (!cotizaciones || cotizaciones.length === 0) {
+      console.log('No se encontraron cotizaciones con el código MOEX en la base local.');
+      return;
+    }
+
+    console.log(`Se encontraron ${cotizaciones.length} cotizaciones para procesar.`);
+
+    // Definir el rango de fechas (desde el 1 de enero hasta hoy)
+    const fechaDesdeUTC = new Date(new Date().getFullYear(), 0, 1); // 1 de enero
+    fechaDesdeUTC.setUTCHours(0, 0, 0, 0);
+    const fechaHastaUTC = new Date(); // Hoy
+
+    const fechaDesde = obtenerFechaFormatoISO(fechaDesdeUTC);
+    const fechaHasta = obtenerFechaFormatoISO(fechaHastaUTC);
+
+    // Verificar cotizaciones existentes en el servidor remoto
+    const respuestaExistente = await axios.get(
+      `http://ec2-54-145-211-254.compute-1.amazonaws.com:3000/indices/MOEX/cotizaciones?fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`,
+      {}
+    );
+
+    const cotizacionesExistentes = respuestaExistente.data || [];
+    console.log('Cotizaciones ya existentes en el servidor remoto:', cotizacionesExistentes);
+
+    // Procesar y publicar cada cotización
+    for (const cotizacion of cotizaciones) {
+      const cotizacionRemota = {
+        fecha: cotizacion.fecha,
+        hora: cotizacion.hora,
+        codigoIndice: cotizacion.codigoIndice,
+        valorIndice: cotizacion.valorIndice,
+      };
+      //console.log(cotizacionRemota);
+
+      // Verificar si la cotización ya existe en el servidor remoto
+      const cotizacionExistente = cotizacionesExistentes.find(cot =>
+        cot.codigoIndice === cotizacionRemota.codigoIndice &&
+        cot.fecha === cotizacionRemota.fecha &&
+        cot.hora === cotizacionRemota.hora
+      );
+
+      if (cotizacionExistente) {
+        console.log('La cotización ya existe en el servidor remoto:', cotizacionRemota);
+        continue; // Pasar a la siguiente cotización si ya existe
+      }
+
+      // Publicar la cotización en el servidor remoto
+      try {
+        const respuesta = await axios.post(
+          'http://ec2-54-145-211-254.compute-1.amazonaws.com:3000/indices/cotizaciones',
+          cotizacionRemota,
+          {
+            headers: {
+              'Authorization': 'Bearer Luis_rios',
+            },
+          }
+        );
+
+        console.log(`Cotización publicada en el servidor remoto: ${cotizacionRemota.fecha},${cotizacionRemota.hora} `, respuesta.data);
+      } catch (error) {
+        console.error(`Error al publicar la cotización ${cotizacionRemota.fecha} ${cotizacionRemota.hora}:`, error.response ? error.response.data : error.message);
+      }
+    }
+  } catch (error) {
+    console.error('Error durante el proceso:', error.response ? error.response.data : error.message);
+  } finally {
+    // Cerrar la conexión con la base local
+    mongoose.connection.close();
+  }
+}
+
+//publicarTodasLasCotizacionesMOEX();
 
 // Configuración del cron job para ejecutarse cada 3 horas
 const cron = require('node-cron');
