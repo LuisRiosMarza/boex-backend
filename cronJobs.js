@@ -82,7 +82,7 @@ const actualizarCotizaciones = async () => {
       const url = `http://ec2-54-145-211-254.compute-1.amazonaws.com:3000/empresas/${empresa.codempresa}/cotizaciones?fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`;
 
       // Mostrar la URL que está siendo consultada
-      console.log(`Consultando URL: ${url}`);
+      //console.log(`Consultando URL: ${url}`);
       try {
         const response = await axios.get(url);
         const cotizaciones = response.data; // Se espera un arreglo de cotizaciones
@@ -143,9 +143,9 @@ const actualizarIndices = async () => {
           // Si el nombre es diferente, actualizarlo
           indiceExistente.name = name;
           await indiceExistente.save();
-          console.log(`Índice con código ${code} actualizado.`);
+          //console.log(`Índice con código ${code} actualizado.`);
         } else {
-          console.log(`Índice con código ${code} ya está actualizado.`);
+          //console.log(`Índice con código ${code} ya está actualizado.`);
         }
       } else {
         // Si el índice no existe, crear uno nuevo
@@ -179,7 +179,7 @@ async function crearIndiceMOEX() {
     const indiceExistente = respuestaExistente.data.find(indice => indice.code === 'MOEX');
 
     if (indiceExistente) {
-      console.log('El índice ya existe:', indiceExistente);
+      //console.log('El índice ya existe:', indiceExistente);
       return; // Salir si el índice ya está creado
     }
 
@@ -229,7 +229,7 @@ const calcularIndicesHistoricos = async () => {
         });
 
         if (indiceExistente) {
-          console.log(`Índice ya existente para ${fechaActual} ${horaRusaFormato}. Saltando...`);
+          //console.log(`Índice ya existente para ${fechaActual} ${horaRusaFormato}. Saltando...`);
           continue;
         }
 
@@ -292,7 +292,7 @@ const actualizarCotizacionesIndices = async () => {
       const url = `http://ec2-54-145-211-254.compute-1.amazonaws.com:3000/indices/${indice.code}/cotizaciones?fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`;
 
       // Mostrar la URL que está siendo consultada
-      console.log(`Consultando URL: ${url}`);
+      //console.log(`Consultando URL: ${url}`);
 
       try {
         const response = await axios.get(url);
@@ -313,7 +313,7 @@ const actualizarCotizacionesIndices = async () => {
             // Actualizar la cotización existente
             cotizacionExistente.valor = parseFloat(valor);
             await cotizacionExistente.save();
-            console.log(`Cotización actualizada para ${indice.code} en ${fecha} ${hora}`);
+            //console.log(`Cotización actualizada para ${indice.code} en ${fecha} ${hora}`);
           } else {
             // Crear una nueva cotización si no existe
             await IndiceCotizacion.create({
@@ -360,7 +360,7 @@ async function publicarTodasLasCotizacionesMOEX() {
     );
 
     const cotizacionesExistentes = respuestaExistente.data || [];
-    console.log('Cotizaciones ya existentes en el servidor remoto:', cotizacionesExistentes);
+    //console.log('Cotizaciones ya existentes en el servidor remoto:', cotizacionesExistentes);
 
     // Procesar y publicar cada cotización
     for (const cotizacion of cotizaciones) {
@@ -370,17 +370,16 @@ async function publicarTodasLasCotizacionesMOEX() {
         codigoIndice: cotizacion.codigoIndice,
         valorIndice: cotizacion.valorIndice,
       };
-      //console.log(cotizacionRemota);
 
       // Verificar si la cotización ya existe en el servidor remoto
       const cotizacionExistente = cotizacionesExistentes.find(cot =>
-        cot.codigoIndice === cotizacionRemota.codigoIndice &&
+        cot.code === cotizacionRemota.codigoIndice &&
         cot.fecha === cotizacionRemota.fecha &&
         cot.hora === cotizacionRemota.hora
       );
 
       if (cotizacionExistente) {
-        console.log('La cotización ya existe en el servidor remoto:', cotizacionRemota);
+        console.log(`La cotización ya existe en el servidor remoto ${cotizacionRemota.fecha} ${cotizacionRemota.hora}`);
         continue; // Pasar a la siguiente cotización si ya existe
       }
 
@@ -409,16 +408,12 @@ async function publicarTodasLasCotizacionesMOEX() {
   }
 }
 
-//publicarTodasLasCotizacionesMOEX();
-//actualizarCotizacionesIndices();
-//calcularIndicesHistoricos();
-
-
 // Configuración del cron job para ejecutarse cada 3 horas
 const cron = require('node-cron');
-//cron.schedule('* * * * *', calcularIndicesHistoricos); // Ejecutar cada hora en el minuto 0 * * * *
-//cron.schedule('* * * * *', actualizarEmpresas);
-//cron.schedule('* * * * *', actualizarCotizaciones);
-//cron.schedule('* * * * *', actualizarIndices);
-//cron.schedule('* * * * *', crearIndiceMOEX);
-//cron.schedule('* * * * *', actualizarCotizacionesIndices);
+cron.schedule('*/5 * * * *', actualizarEmpresas);//Actualizo empresas (No cambian nunca pero por las dudas)
+cron.schedule('0 * * * *', actualizarCotizaciones);//Actualizo cotizaciones de empresas.
+cron.schedule('0 * * * *', calcularIndicesHistoricos); // Ejecutar cada hora en el minuto 0 * * * *
+cron.schedule('*/5 * * * *', actualizarIndices);//Actualizo empresas (Pueden cambiar, por las dudas)
+cron.schedule('*/60 * * * *', crearIndiceMOEX);//Cada una hora verfico que mi indice se haya creado bien y exista en AWS
+cron.schedule('*/5 * * * *', publicarTodasLasCotizacionesMOEX);//publico mis cotizaciones cada 5 minutos.
+cron.schedule('*/10 * * * *', actualizarCotizacionesIndices);// me traigo las cotizaciones de los demas cada 10 minutos.
