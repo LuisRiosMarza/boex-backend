@@ -410,6 +410,9 @@ async function publicarTodasLasCotizacionesMOEX() {
 }
 
 //publicarTodasLasCotizacionesMOEX();
+//actualizarCotizacionesIndices();
+//calcularIndicesHistoricos();
+
 
 // Configuración del cron job para ejecutarse cada 3 horas
 const cron = require('node-cron');
