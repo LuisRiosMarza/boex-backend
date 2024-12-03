@@ -13,7 +13,8 @@ app.use(cors());
 app.use(express.json());
 
 // Conectar a MongoDB
-mongoose.connect('mongodb://localhost:27017/boexbd', {
+//mongodb://localhost:27017/boexbd
+mongoose.connect('mongodb://host.docker.internal:27017/boexbd', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })

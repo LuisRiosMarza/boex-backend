@@ -292,7 +292,7 @@ const actualizarCotizacionesIndices = async () => {
       const url = `http://ec2-54-145-211-254.compute-1.amazonaws.com:3000/indices/${indice.code}/cotizaciones?fechaDesde=${fechaDesde}&fechaHasta=${fechaHasta}`;
 
       // Mostrar la URL que está siendo consultada
-      //console.log(`Consultando URL: ${url}`);
+      console.log(`Consultando URL: ${url}`);
 
       try {
         const response = await axios.get(url);
@@ -402,13 +402,9 @@ async function publicarTodasLasCotizacionesMOEX() {
     }
   } catch (error) {
     console.error('Error durante el proceso:', error.response ? error.response.data : error.message);
-  } finally {
-    // Cerrar la conexión con la base local
-    mongoose.connection.close();
   }
 }
 
-// Configuración del cron job para ejecutarse cada 3 horas
 const cron = require('node-cron');
 cron.schedule('*/5 * * * *', actualizarEmpresas);//Actualizo empresas (No cambian nunca pero por las dudas)
 cron.schedule('0 * * * *', actualizarCotizaciones);//Actualizo cotizaciones de empresas.
